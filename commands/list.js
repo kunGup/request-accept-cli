@@ -40,7 +40,11 @@ async function list() {
       "#mn-invitation-manager__invitation-facet-pills--CONNECTION",
       newTab
     );
-    await newTab.waitForSelector(".invitation-card__container");
+    try{
+      await newTab.waitForSelector(".invitation-card__container");
+    }catch(err){
+      throw 1
+    }
 
     let totalInvitation = await newTab.$$(".invitation-card__container");
     console.log(
@@ -59,7 +63,10 @@ async function list() {
 
     displayList();
   } catch (err) {
-    console.log("Sorry there are no connection invites currently");
+    if(err==1)
+    console.log("There are no connection invites currently");
+    else
+    console.log("Something went wrong, check internet and try again");
     process.exit();
   }
 }

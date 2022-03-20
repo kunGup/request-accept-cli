@@ -10,7 +10,7 @@ npm install -g request-accept-cli
 ## Usage
 
 ```bash
-    Usage: index [options] [command]
+    Usage: lin [options] [command]
 
     Options:
         -h, --help      display help for command
