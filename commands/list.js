@@ -9,7 +9,7 @@ const invitationManager =
 let names, links;
 let newTab;
 
-async function list() {
+async function login() {
   let username = config.get("credentials")?.username;
   let password = config.get("credentials")?.password;
   let headLess = config.get("headLess");
@@ -17,56 +17,89 @@ async function list() {
     console.log("Provide login credentials first using credentials command.");
     return;
   }
-  try {
-    console.log("Wait we are fetching new requests...");
-    let browserWillLaunch = await puppeteer.launch({
-      headless: headLess == undefined ? true : headLess,
-      args: ["--start-maximized"],
-      defaultViewport: null,
-    });
-    newTab = await browserWillLaunch.newPage();
-    await newTab.goto(loginLink);
-    await newTab.type("input#username", username, {
-      delay: 100,
-    });
-    await newTab.type("input#password", password, {
-      delay: 100,
-    });
-    await newTab.click("button[type='submit']", { delay: 50 });
-    await newTab.waitForSelector("a[data-link-to='mynetwork']");
+  console.log("Wait we are fetching new requests...");
+  let browserWillLaunch = await puppeteer.launch({
+    headless: headLess == undefined ? true : headLess,
+    args: ["--start-maximized"],
+    defaultViewport: null,
+  });
+  newTab = await browserWillLaunch.newPage();
+  await newTab.goto(loginLink);
+  await newTab.type("input#username", username, {
+    delay: 10,
+  });
+  await newTab.type("input#password", password, {
+    delay: 10,
+  });
+  await newTab.click("button[type='submit']", { delay: 10 });
+}
 
-    await newTab.goto(invitationManager);
+async function goToInvitationManager() {
+  await newTab.waitForSelector(
+    "a[href='https://www.linkedin.com/mynetwork/?']"
+  );
+
+  await newTab.goto(invitationManager);
+  
+  try {
     await waitAndClick(
       "#mn-invitation-manager__invitation-facet-pills--CONNECTION",
       newTab
     );
-    try{
-      await newTab.waitForSelector(".invitation-card__container");
-    }catch(err){
-      throw 1
-    }
+    await newTab.waitForSelector(".invitation-card__container");
+  } catch (err) {
+    throw 1;
+  }
 
-    let totalInvitation = await newTab.$$(".invitation-card__container");
-    console.log(
-      `You have ${totalInvitation.length} connection request${
-        totalInvitation.length > 1 ? "s" : ""
-      }`
-    );
-    names = await newTab.$$eval(".invitation-card__title", (nodes) =>
-      nodes.map((n) => n.innerText)
-    );
+  //finding total no. of invitations
+  let connectionsPill = await newTab.$(
+    "#mn-invitation-manager__invitation-facet-pills--CONNECTION"
+  );
+  let attr = await newTab.evaluate(
+    (el) => el.getAttribute("aria-label"),
+    connectionsPill
+  );
 
-    links = await newTab.$$eval(
-      ".invitation-card__container>div:first-child>a",
-      (nodes) => nodes.map((n) => n.href)
-    );
+  let totalILen = parseInt(attr.split(" ")[1].substr(1, 2));
+  console.log(
+    `You have ${totalILen} connection request${totalILen > 1 ? "s" : ""}`
+  );
+    
+  let currentILen = await getCInvitationLength()
+  while (totalILen - currentILen >= 10) {
+    await scrollToBottom();
+    currentILen = await getCInvitationLength();
+  }
+  names = await newTab.$$eval(".invitation-card__title", (nodes) =>
+    nodes.map((n) => n.innerText)
+  );
 
+  links = await newTab.$$eval(
+    ".invitation-card__container>div:first-child>a",
+    (nodes) => nodes.map((n) => n.href)
+  );
+}
+
+async function getCInvitationLength() {
+  let currentInvitations = await newTab.$$(".invitation-card__container");
+  return currentInvitations.length;
+}
+
+async function scrollToBottom() {
+  await newTab.evaluate(goToBottom);
+  function goToBottom() {
+    window.scrollBy(0, window.innerHeight);
+  }
+}
+
+async function list() {
+  try {
+    await login();
+    await goToInvitationManager();
     displayList();
   } catch (err) {
-    if(err==1)
-    console.log("There are no connection invites currently");
-    else
-    console.log("Something went wrong, check internet and try again");
+    if (err == 1) console.log("There are no connection invites currently");
+    else console.log("Something went wrong, check internet and try again");
     process.exit();
   }
 }
@@ -76,7 +109,7 @@ async function waitAndClick(selector, cPage) {
     (async function () {
       try {
         await cPage.waitForSelector(selector, { timeout: 10000 });
-        await cPage.click(selector, { delay: 100 });
+        await cPage.click(selector, { delay: 50 });
         resolve();
       } catch (err) {
         reject();
@@ -89,11 +122,16 @@ async function acceptAll() {
   return new Promise(function (resolve, reject) {
     (async function () {
       try {
+        //first waits for the buttons to load
+        await newTab.waitForSelector(
+          ".invitation-card__action-container>button:nth-of-type(2)",
+          { timeout: 10000 }
+        );
         let acceptButtons = await newTab.$$(
           ".invitation-card__action-container>button:nth-of-type(2)"
         );
         for (let i = 0; i < acceptButtons.length; i++) {
-          await acceptButtons[i].click({ delay: 100 });
+          await acceptButtons[i].click({ delay: 50 });
         }
         resolve();
       } catch (err) {
@@ -194,7 +232,7 @@ async function requestAccepeter(page, link) {
       try {
         await page.goto(link);
         await waitAndClick(
-          "button[data-control-name='accept']:nth-of-type(1)",
+          ".pvs-profile-actions__action.artdeco-button.artdeco-button--2.artdeco-button--primary:nth-of-type(2)",
           page
         );
         resolve();
